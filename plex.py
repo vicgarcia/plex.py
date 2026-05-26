@@ -78,6 +78,12 @@ Examples:
   plex playlists "Road Trip" --delete                   # Delete playlist
   plex playlists "Road Trip" --add 1234                 # Add item by ID (from search)
   plex playlists "Road Trip" --remove 1234              # Remove item by ID (from playlist view)
+  plex set 1234 --watched                               # Mark item as watched (movie, show, season, episode)
+  plex set 1234 --unwatched                             # Mark item as unwatched
+  plex set 1234 --rating 8.5                            # Set user rating (0–10)
+  plex set 1234 --title "The Matrix" --sort-title "Matrix, The"
+  plex set 1234 --original-title "La Vita è Bella"      # Set foreign/original title
+  plex set 1234 --watched --rating 9 --title "New Name" # Combine multiple changes
 """
 
 SORT_MAP = {
@@ -324,6 +330,52 @@ class PlexClient:
             raise ValueError(f'Item with ID {rating_key} not found in playlist')
         playlist.removeItems(matches[:1])
         return matches[0]
+
+    def set_item(
+        self,
+        rating_key: int,
+        *,
+        watched: Optional[bool] = None,
+        rating: Optional[float] = None,
+        title: Optional[str] = None,
+        sort_title: Optional[str] = None,
+        original_title: Optional[str] = None,
+    ) -> dict:
+        if rating is not None and not (0 <= rating <= 10):
+            raise ValueError(f'Rating must be between 0 and 10, got {rating}')
+        item = self.server.fetchItem(rating_key)
+        changes = []
+
+        if watched is not None:
+            if watched:
+                item.markWatched()
+            else:
+                item.markUnwatched()
+            changes.append(('status', 'watched' if watched else 'unwatched'))
+
+        if rating is not None:
+            item.rate(rating)
+            changes.append(('rating', str(rating)))
+
+        edits = [
+            (title, 'editTitle', 'title'),
+            (sort_title, 'editSortTitle', 'sort title'),
+            (original_title, 'editOriginalTitle', 'original title'),
+        ]
+        if any(v is not None for v, _, _ in edits):
+            item.batchEdits()
+            for value, method_name, label in edits:
+                if value is not None:
+                    getattr(item, method_name)(value)
+                    changes.append((label, value))
+            item.saveEdits()
+
+        return {
+            'title': item.title,
+            'type': item.type,
+            'id': rating_key,
+            'changes': changes,
+        }
 
     def search(self, query: str, media_type: Optional[str] = None) -> list[dict]:
         results = self.server.search(query, mediatype=media_type)
@@ -654,6 +706,34 @@ def cmd_playlists(args):
     return 0
 
 
+def cmd_set(args):
+    opts = [args.watched, args.unwatched, args.rating, args.title, args.sort_title, args.original_title]
+    if not any(o is not None and o is not False for o in opts):
+        print('Error: specify at least one option to set (see plex set --help)', file=sys.stderr)
+        return 1
+
+    watched = True if args.watched else (False if args.unwatched else None)
+    client = get_client(args)
+    result = client.set_item(
+        args.id,
+        watched=watched,
+        rating=args.rating,
+        title=args.title,
+        sort_title=args.sort_title,
+        original_title=args.original_title,
+    )
+
+    if not result['changes']:
+        print('No changes made')
+        return 0
+
+    print(f"{result['title']} ({result['type']}) — {len(result['changes'])} change(s)")
+    label_w = max(len(c[0]) for c in result['changes'])
+    for label, value in result['changes']:
+        print(f"  {label:<{label_w}}  →  {value}")
+    return 0
+
+
 # ── argument parser ───────────────────────────────────────────────────────────
 
 def main():
@@ -701,6 +781,18 @@ def main():
     pl_group.add_argument('--add', metavar='ID', type=int, help='Add item by ID (requires title)')
     pl_group.add_argument('--remove', metavar='ID', type=int, help='Remove item by ID (requires title)')
     playlists_parser.set_defaults(func=cmd_playlists)
+
+    # set
+    set_parser = subparsers.add_parser('set', help='Set attributes on a media item by ID')
+    set_parser.add_argument('id', type=int, help='Item ID (from search or detail views)')
+    watch_group = set_parser.add_mutually_exclusive_group()
+    watch_group.add_argument('--watched', action='store_true', default=None, help='Mark as watched')
+    watch_group.add_argument('--unwatched', action='store_true', default=None, help='Mark as unwatched')
+    set_parser.add_argument('--rating', type=float, metavar='N', help='User rating 0–10')
+    set_parser.add_argument('--title', metavar='TEXT', help='Title')
+    set_parser.add_argument('--sort-title', metavar='TEXT', dest='sort_title', help='Sort title (e.g. "Matrix, The")')
+    set_parser.add_argument('--original-title', metavar='TEXT', dest='original_title', help='Original/foreign language title')
+    set_parser.set_defaults(func=cmd_set)
 
     # search
     search_parser = subparsers.add_parser('search', help='Search for content')
