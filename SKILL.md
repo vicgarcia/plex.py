@@ -1,6 +1,6 @@
 ---
 name: plex
-description: Browse and manage a Plex media server. Use when the user wants to explore their movie/TV library, search for content, check watch status, or manage playlists. Covers libraries, movies, shows (seasons/episodes), search, and playlist CRUD.
+description: Browse and manage a Plex media server. Use when the user wants to explore their movie/TV library, search for content, check watch status, update metadata, or manage playlists. Covers libraries, movies, shows (seasons/episodes), search, playlist CRUD, and setting attributes (watched status, rating, titles) on any media item.
 compatibility: Requires 'plex.py' script in PATH with PLEX_USERNAME, PLEX_PASSWORD, and PLEX_URL environment variables set.
 ---
 
@@ -148,6 +148,43 @@ plex.py playlists "Road Trip" --remove 1234
 | `--add ID` | Add item by ratingKey (requires title) |
 | `--remove ID` | Remove item by ratingKey (requires title) |
 
+### Set
+```bash
+# Mark watched or unwatched
+plex.py set 1234 --watched
+plex.py set 1234 --unwatched
+
+# Set user rating (0–10)
+plex.py set 1234 --rating 8.5
+
+# Edit title fields (locked against agent overwrite by default)
+plex.py set 1234 --title "The Matrix"
+plex.py set 1234 --sort-title "Matrix, The"
+plex.py set 1234 --original-title "La Vita è Bella"
+
+# Multiple changes in one call
+plex.py set 1234 --watched --rating 9 --title "Corrected Title"
+```
+
+**Output** — item name, type, and a list of each changed field with its new value:
+```
+The Matrix (movie) — 2 change(s)
+  status  →  watched
+  rating  →  9.0
+```
+
+Works for any item type: movie, show, season, episode. The ID must be a `ratingKey` — get it from `search`, a movie/episode detail view, or `shows <title> --season N`.
+
+**Set options:**
+| Option | Description |
+|--------|-------------|
+| `ID` | Item ratingKey (required) |
+| `--watched` / `--unwatched` | Mark watched status (mutually exclusive) |
+| `--rating N` | User rating 0–10 |
+| `--title TEXT` | Title |
+| `--sort-title TEXT` | Sort title (e.g. `"Matrix, The"`) |
+| `--original-title TEXT` | Original/foreign language title |
+
 ## Working with IDs
 
 Plex items have a stable numeric ID (`ratingKey`). You need the ID to add/remove playlist items:
@@ -156,6 +193,8 @@ Plex items have a stable numeric ID (`ratingKey`). You need the ID to add/remove
 2. **From movie detail:** `plex.py movies "Title"` — ID printed at bottom
 3. **From episode list:** `plex.py shows "Title" --season N` — ID printed per episode
 4. **From playlist view:** `plex.py playlists "Name"` — ID column shows each item's ID
+
+IDs are used with `playlists --add/--remove` and `set`.
 
 ## Example Workflows
 
@@ -184,4 +223,16 @@ plex.py movies --library "4K Movies"         # browse a specific section
 ```bash
 plex.py shows "The Wire"                     # see seasons
 plex.py shows "The Wire" --season 1          # see episodes with IDs
+```
+
+**Mark a movie watched and rate it:**
+```bash
+plex.py search "inception" --type movie      # get ID
+plex.py set 1234 --watched --rating 9
+```
+
+**Fix a title or sort order:**
+```bash
+plex.py search "matrix" --type movie         # get ID
+plex.py set 1234 --sort-title "Matrix, The"
 ```

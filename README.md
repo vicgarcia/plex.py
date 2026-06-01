@@ -56,6 +56,7 @@ Auth tokens are cached at `~/.plex.json` after first login. If a cached token fa
 | `shows [title]` | List shows, seasons, or episodes |
 | `search query` | Search for content |
 | `playlists [title]` | List or manage playlists |
+| `set ID` | Set attributes on any media item by ID |
 
 ## Usage
 
@@ -98,7 +99,7 @@ plex.py search "office" --type show
 plex.py search "inception" --type movie
 ```
 
-The ID column in search results is the `ratingKey` — use it with `playlists --add` to add items to playlists.
+The ID column in search results is the `ratingKey` — use it with `playlists --add` to add items to playlists, or with `set` to update attributes.
 
 ### Playlists
 
@@ -149,6 +150,35 @@ plex.py playlists "Road Trip" --remove 1234
 | `--delete` | Delete the playlist |
 | `--add ID` | Add item by ratingKey |
 | `--remove ID` | Remove item by ratingKey |
+
+### set
+
+```bash
+# Toggle watched status
+plex.py set 1234 --watched
+plex.py set 1234 --unwatched
+
+# Set user rating (0–10)
+plex.py set 1234 --rating 8.5
+
+# Edit title fields
+plex.py set 1234 --title "The Matrix" --sort-title "Matrix, The"
+plex.py set 1234 --original-title "La Vita è Bella"
+
+# Combine multiple changes in one call
+plex.py set 1234 --watched --rating 9 --title "New Name"
+```
+
+Works for any item type — movies, shows, seasons, and episodes. Get the ID from `search`, a detail view, or an episode list.
+
+| Option | Description |
+|--------|-------------|
+| `ID` | Item ratingKey (required) |
+| `--watched` / `--unwatched` | Mark watched status (mutually exclusive) |
+| `--rating N` | User rating, 0–10 |
+| `--title TEXT` | Title |
+| `--sort-title TEXT` | Sort title (e.g. `"Matrix, The"`) |
+| `--original-title TEXT` | Original/foreign language title |
 
 ## Agent Skill
 
